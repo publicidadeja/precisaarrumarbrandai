@@ -1,4 +1,8 @@
 <?php
+
+// Configurar log de erros personalizado
+ini_set('log_errors', 1);
+ini_set('error_log', WP_CONTENT_DIR . '/gma-error.log');
 // materiais.php
 
 if (!defined('ABSPATH')) {
@@ -8,11 +12,17 @@ if (!defined('ABSPATH')) {
 // Funções relacionadas a materiais
 
 function gma_criar_material($campanha_id, $imagem_url, $copy, $link_canva = '', $arquivo_id = null, $tipo_midia = 'imagem', $video_url = '') {
-    if (!gma_verificar_licenca_ativa()) {
-        return false;
-    }
-  global $wpdb;
+
+    global $wpdb;
     $tabela = $wpdb->prefix . 'gma_materiais';
+
+    // Log dos dados recebidos
+    error_log('Tentando criar material com os seguintes dados:');
+    error_log('Campanha ID: ' . $campanha_id);
+    error_log('Imagem URL: ' . $imagem_url);
+    error_log('Copy: ' . $copy);
+    error_log('Link Canva: ' . $link_canva);
+    error_log('Tipo Mídia: ' . $tipo_midia);
 
     // Inicia a transação
     $wpdb->query('START TRANSACTION');
@@ -20,8 +30,9 @@ function gma_criar_material($campanha_id, $imagem_url, $copy, $link_canva = '', 
     try {
         // Verifica se o material já existe
         if (gma_verificar_material_existente($campanha_id, $imagem_url, $copy, $link_canva)) {
+            error_log('Material já existe no banco de dados');
             $wpdb->query('ROLLBACK');
-            return false; // Material já existe
+            return false;
         }
 
         $dados = array(
@@ -36,31 +47,33 @@ function gma_criar_material($campanha_id, $imagem_url, $copy, $link_canva = '', 
             'data_criacao' => current_time('mysql')
         );
 
-        $formatos = array(
-            '%d', // campanha_id
-            '%s', // imagem_url
-            '%s', // copy
-            '%s', // link_canva
-            '%d', // arquivo_id
-            '%s', // status_aprovacao
-            '%s', // tipo_midia
-            '%s', // video_url
-            '%s'  // data_criacao
-        );
+        // Log da query que será executada
+        error_log('Tentando inserir dados na tabela: ' . $tabela);
+        error_log('Dados para inserção: ' . print_r($dados, true));
 
-        $resultado = $wpdb->insert($tabela, $dados, $formatos);
+        $resultado = $wpdb->insert($tabela, $dados);
+        
+        if ($resultado === false) {
+            error_log('Erro MySQL ao inserir material: ' . $wpdb->last_error);
+            $wpdb->query('ROLLBACK');
+            return false;
+        }
+
         $insert_id = $wpdb->insert_id;
-
-        if ($resultado && $insert_id) {
+        
+        if ($insert_id) {
+            error_log('Material criado com sucesso. ID: ' . $insert_id);
             $wpdb->query('COMMIT');
             return $insert_id;
         } else {
+            error_log('Falha ao obter ID do material inserido');
             $wpdb->query('ROLLBACK');
             return false;
         }
     } catch (Exception $e) {
+        error_log('Exceção ao criar material: ' . $e->getMessage());
+        error_log('Stack trace: ' . $e->getTraceAsString());
         $wpdb->query('ROLLBACK');
-        error_log('Erro ao criar material: ' . $e->getMessage());
         return false;
     }
 }
@@ -99,9 +112,7 @@ function gma_listar_materiais($campanha_id = null) {
 
 
 function gma_atualizar_material($material_id, $dados) {
-  if (!gma_verificar_licenca_ativa()) {
-        return false;
-    }
+
     global $wpdb;
     $tabela = $wpdb->prefix . 'gma_materiais';
     
@@ -160,9 +171,7 @@ add_action('admin_post_gma_atualizar_material', 'gma_handle_atualizar_material')
 add_action('admin_post_nopriv_gma_atualizar_material', 'gma_handle_atualizar_material');
 
 function gma_excluir_material($material_id) {
-  if (!gma_verificar_licenca_ativa()) {
-        return false;
-    }
+
     global $wpdb;
     $tabela = $wpdb->prefix . 'gma_materiais';
     $result = $wpdb->delete($tabela, array('id' => $material_id), array('%d'));

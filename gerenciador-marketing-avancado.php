@@ -1068,4 +1068,15 @@ function gma_verificar_licenca($codigo_licenca) {
     return $status;
 }
 
+// Registrar função de atualização
+register_activation_hook(__FILE__, 'gma_ativar_plugin');
+add_action('plugins_loaded', 'gma_verificar_atualizacao');
+
+function gma_verificar_atualizacao() {
+    $versao_atual = get_option('gma_version', '1.0.0');
+    if (version_compare($versao_atual, GMA_VERSION, '<')) {
+        gma_atualizar_tabelas();
+        update_option('gma_version', GMA_VERSION);
+    }
+}
 

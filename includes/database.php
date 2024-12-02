@@ -3,6 +3,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+function gma_atualizar_tabelas() {
+    global $wpdb;
+    $tabela_materiais = $wpdb->prefix . 'gma_materiais';
+
+    // Verificar se a coluna video_url existe
+    $coluna_existe = $wpdb->get_results("SHOW COLUMNS FROM $tabela_materiais LIKE 'video_url'");
+    if (empty($coluna_existe)) {
+        $wpdb->query("ALTER TABLE $tabela_materiais ADD COLUMN video_url varchar(255) DEFAULT NULL");
+    }
+}
+
 /**
  * Função para criar as tabelas do plugin.
  */
@@ -42,13 +53,12 @@ function gma_criar_tabelas() {
         FOREIGN KEY (categoria_id) REFERENCES $tabela_categorias(id) ON DELETE SET NULL
     ) $charset_collate;";
 
-  
-  
-    // SQL para tabela de materiais
+    // SQL para tabela de materiais (Atualizado com video_url)
     $sql_materiais = "CREATE TABLE $tabela_materiais (
         id mediumint(9) NOT NULL AUTO_INCREMENT,
         campanha_id mediumint(9) NOT NULL,
         imagem_url varchar(255) NOT NULL,
+        video_url varchar(255) DEFAULT NULL,
         copy text NOT NULL,
         link_canva varchar(255),
         arquivo_id bigint(20) unsigned DEFAULT NULL,
@@ -128,17 +138,19 @@ function gma_criar_tabelas() {
         FOREIGN KEY (modificado_por) REFERENCES {$wpdb->users}(ID)
     ) $charset_collate;";
 
-     $sql_licencas = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}gma_licencas (
-    id bigint(20) NOT NULL AUTO_INCREMENT,
-    codigo_licenca varchar(255) NOT NULL,
-    status varchar(50) NOT NULL DEFAULT 'inativo',
-    data_ativacao datetime DEFAULT NULL,
-    data_expiracao datetime DEFAULT NULL,
-    site_url varchar(255) NOT NULL,
-    tipo_licenca varchar(50) NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY codigo_licenca (codigo_licenca)
-) $charset_collate;";
+    // SQL para tabela de licenças
+    $sql_licencas = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}gma_licencas (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        codigo_licenca varchar(255) NOT NULL,
+        status varchar(50) NOT NULL DEFAULT 'inativo',
+        data_ativacao datetime DEFAULT NULL,
+        data_expiracao datetime DEFAULT NULL,
+        site_url varchar(255) NOT NULL,
+        tipo_licenca varchar(50) NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY codigo_licenca (codigo_licenca)
+    ) $charset_collate;";
+
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     
     // Criar todas as tabelas
@@ -152,8 +164,9 @@ function gma_criar_tabelas() {
     dbDelta($sql_pastas);
     dbDelta($sql_versoes);
     dbDelta($sql_licencas);
-  
-  
+
+    // Garantir que a coluna video_url existe
+    gma_atualizar_tabelas();
 }
 
 /**
@@ -161,10 +174,11 @@ function gma_criar_tabelas() {
  */
 function gma_verificar_versao_banco() {
     $versao_atual = get_option('gma_db_version', '1.0');
-    $nova_versao = '2.0';
+    $nova_versao = '2.1'; // Atualizado para versão 2.1
     
     if (version_compare($versao_atual, $nova_versao, '<')) {
         gma_criar_tabelas();
+        gma_atualizar_tabelas();
         update_option('gma_db_version', $nova_versao);
     }
 }
@@ -190,5 +204,6 @@ function gma_verificar_tabelas() {
 }
 
 // Hooks
+register_activation_hook(__FILE__, 'gma_criar_tabelas');
 add_action('plugins_loaded', 'gma_verificar_versao_banco');
 add_action('plugins_loaded', 'gma_verificar_tabelas');
